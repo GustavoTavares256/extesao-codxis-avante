@@ -55,68 +55,27 @@
           <div class="avante-dashboard-header">
             <div>
               <span class="avante-badge">Avante Web</span>
-              <h2>Dashboard Executivo Premium</h2>
+              <h2>Dashboard Executivo</h2>
             </div>
             <div class="avante-header-actions">
               <div class="avante-goal-editor">
                 <input id="avante-monthly-goal-input" type="number" min="0" step="0.01" placeholder="Meta do mês" />
-                <button class="avante-save-meta-btn" id="avante-save-meta-btn">Salvar meta</button>
+                <button class="avante-save-meta-btn" id="avante-save-meta-btn">Salvar</button>
               </div>
               <button class="avante-toggle-btn" id="avante-dashboard-toggle" aria-label="Fechar dashboard">Fechar</button>
             </div>
           </div>
           <div class="avante-dashboard-body" id="avante-dashboard-body">
-            <div class="avante-dashboard-filters">
-              <button class="avante-filter-pill active">Hoje</button>
-              <button class="avante-filter-pill">Ontem</button>
-              <button class="avante-filter-pill">Semana</button>
-              <button class="avante-filter-pill">Mês</button>
-              <button class="avante-filter-pill">Ano</button>
-              <button class="avante-filter-pill">Personalizado</button>
-            </div>
             <div class="avante-dashboard-grid" id="avante-dashboard-metrics"></div>
             <div class="avante-dashboard-charts">
               <div class="avante-chart-card">
                 <div class="avante-chart-title">Vendas por dia</div>
                 <canvas id="chart-sales-by-day"></canvas>
               </div>
-              <div class="avante-chart-card">
-                <div class="avante-chart-title">Categorias mais vendidas</div>
-                <canvas id="chart-categories"></canvas>
-              </div>
               <div class="avante-chart-card avante-chart-card-wide">
                 <div class="avante-chart-title">Evolução das vendas</div>
                 <canvas id="chart-sales-trend"></canvas>
               </div>
-            </div>
-            <div class="avante-dashboard-bottom-grid">
-              <div class="avante-alerts-card">
-                <div class="avante-section-title">Alertas</div>
-                <div class="avante-alert-list">
-                  <div class="avante-alert-item danger">🔴 Estoque baixo</div>
-                  <div class="avante-alert-item warning">🟡 Meta abaixo do esperado</div>
-                  <div class="avante-alert-item success">🟢 Crescimento nas vendas</div>
-                  <div class="avante-alert-item info">🔵 Caixa positivo</div>
-                  <div class="avante-alert-item accent">🟠 Produtos sem venda</div>
-                </div>
-              </div>
-              <div class="avante-rankings-card">
-                <div class="avante-section-title">Top rankings</div>
-                <div class="avante-rankings-grid">
-                  <div class="avante-ranking-box"><strong>Top 10 produtos</strong><span>Aguardando integração...</span></div>
-                  <div class="avante-ranking-box"><strong>Top clientes</strong><span>Dados indisponíveis.</span></div>
-                  <div class="avante-ranking-box"><strong>Top vendedores</strong><span>Dados indisponíveis.</span></div>
-                  <div class="avante-ranking-box"><strong>Top categorias</strong><span>Dados indisponíveis.</span></div>
-                  <div class="avante-ranking-box"><strong>Top formas de pagamento</strong><span>Dados indisponíveis.</span></div>
-                </div>
-              </div>
-            </div>
-            <div class="avante-debug-panel" id="avante-debug-panel">
-              <div class="avante-debug-header">
-                <strong>Modo de depuração</strong>
-                <span>APIs JSON descobertas automaticamente</span>
-              </div>
-              <div class="avante-debug-list" id="avante-debug-list"></div>
             </div>
           </div>
         </div>
@@ -162,28 +121,25 @@
 
     placeDashboardHost(host) {
       const anchor = this.findMountAnchor();
-      if (anchor && anchor.parentNode && anchor !== host) {
-        const isHeaderLike = /header|banner|topbar|navbar|main-header|layout-header/i.test(anchor.tagName || "") || anchor.matches("header, [role='banner'], .app-header, .main-header, .topbar, .navbar, .header, .layout-header");
+      if (!anchor || !anchor.parentNode || anchor === host) {
+        return;
+      }
 
-        if (isHeaderLike) {
-          host.classList.add("avante-dashboard-embedded");
-          host.style.flex = "1 1 auto";
-          host.style.width = "100%";
-          host.style.minWidth = "0";
-          if (!anchor.contains(host)) {
-            anchor.appendChild(host);
-          }
-          return;
-        }
+      const isHeaderLike = /header|banner|topbar|navbar|main-header|layout-header/i.test(anchor.tagName || "") || anchor.matches("header, [role='banner'], .app-header, .main-header, .topbar, .navbar, .header, .layout-header");
 
-        if (!host.isConnected) {
+      if (isHeaderLike) {
+        host.classList.add("avante-dashboard-embedded");
+        host.style.width = "100%";
+        host.style.minWidth = "0";
+
+        if (anchor.nextElementSibling !== host) {
           anchor.insertAdjacentElement("afterend", host);
         }
         return;
       }
 
-      if (document.body && !host.isConnected) {
-        document.body.appendChild(host);
+      if (!host.isConnected) {
+        anchor.insertAdjacentElement("afterend", host);
       }
     }
 
@@ -361,42 +317,7 @@
     }
 
     renderDebugPanel() {
-      const list = document.getElementById("avante-debug-list");
-      if (!list || typeof this.api.getDiscoveredApis !== "function") {
-        return;
-      }
-
-      const apis = this.api.getDiscoveredApis();
-      if (!apis.length) {
-        list.innerHTML = '<div class="avante-debug-empty">Nenhuma API JSON descoberta ainda.</div>';
-        return;
-      }
-
-      list.innerHTML = apis
-        .map((api) => {
-          const checked = api.selected ? "checked" : "";
-          const bodyPreview = api.body ? JSON.stringify(api.body).slice(0, 120) : "{}";
-          return `
-            <label class="avante-debug-item">
-              <input type="checkbox" class="avante-debug-checkbox" data-url="${api.url}" ${checked} />
-              <span class="avante-debug-method">${api.method}</span>
-              <span class="avante-debug-url">${api.url}</span>
-              <span class="avante-debug-status">${api.status}</span>
-              <span class="avante-debug-duration">${api.time || api.duration || 0} ms</span>
-              <code class="avante-debug-body">${bodyPreview}</code>
-            </label>
-          `;
-        })
-        .join("");
-
-      list.querySelectorAll(".avante-debug-checkbox").forEach((checkbox) => {
-        checkbox.addEventListener("change", (event) => {
-          const { url } = event.target.dataset;
-          const isSelected = event.target.checked;
-          this.api.toggleApi?.(url, isSelected);
-          this.loadData(true);
-        });
-      });
+      return;
     }
 
     async ensureChartsLoaded() {
