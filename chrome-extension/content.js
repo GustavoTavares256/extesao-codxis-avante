@@ -12,13 +12,19 @@
     const hostname = window.location.hostname.toLowerCase();
     const pathname = window.location.pathname.toLowerCase();
     const title = document.title.toLowerCase();
+    const bodyText = (document.body?.innerText || "").toLowerCase();
 
-    return (
-      hostname.includes("avante") ||
-      hostname.includes("codxis") ||
-      pathname.includes("avante") ||
-      title.includes("avante")
-    );
+    const avanteSignals = [
+      hostname.includes("avante"),
+      hostname.includes("codxis"),
+      pathname.includes("avante"),
+      title.includes("avante"),
+      bodyText.includes("avante"),
+      bodyText.includes("codxis"),
+      bodyText.includes("dashboard")
+    ];
+
+    return avanteSignals.some(Boolean);
   }
 
   function injectScript(src) {
