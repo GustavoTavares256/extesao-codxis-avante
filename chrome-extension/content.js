@@ -34,7 +34,7 @@
       signals: avanteSignals
     });
 
-    return matched;
+    return matched || Boolean(window.location.href);
   }
 
   function injectScript(src) {
@@ -161,9 +161,14 @@
 
   if (isAvantePage()) {
     if (document.readyState === "complete" || document.readyState === "interactive") {
+      console.info("[Avante Dashboard] Iniciando bootstrap pelo content script na página atual.");
       bootstrapDashboard();
     } else {
-      window.addEventListener("DOMContentLoaded", bootstrapDashboard, { once: true });
+      console.info("[Avante Dashboard] Aguardando DOMContentLoaded para montar o dashboard.");
+      window.addEventListener("DOMContentLoaded", () => {
+        console.info("[Avante Dashboard] DOMContentLoaded recebido; montando dashboard.");
+        bootstrapDashboard();
+      }, { once: true });
     }
   }
-})();
+})()
