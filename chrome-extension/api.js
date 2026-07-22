@@ -167,12 +167,26 @@
     }
 
     captureRequest(payload) {
-      if (!payload || !payload.url || !payload.jsonDetected) {
+      if (!payload || !payload.url) {
+        console.warn("[Avante DataProvider] Requisição descartada: URL ausente.", payload);
+        return;
+      }
+
+      if (!payload.jsonDetected) {
+        console.info("[Avante DataProvider] Requisição descartada: resposta não é JSON compatível.", {
+          url: payload.url,
+          contentType: payload.contentType || "",
+          method: payload.method || "GET"
+        });
         return;
       }
 
       const normalizedUrl = this.normalizeUrl(payload.url);
       if (this.shouldIgnore(normalizedUrl, payload.contentType)) {
+        console.info("[Avante DataProvider] Requisição descartada: URL ignorada por extensão ou tipo de conteúdo.", {
+          url: normalizedUrl,
+          contentType: payload.contentType || ""
+        });
         return;
       }
 
@@ -201,6 +215,8 @@
 
       this.selectedUrls.add(normalizedUrl);
       this.persistSelection();
+
+      console.info("[Avante DataProvider] API JSON detectada.", record);
 
       if (this.debug) {
         logDebug("Requisição JSON descoberta", record);
@@ -349,7 +365,10 @@
 
     async collect() {
       const selectedEntries = this.inspector.getSelectedRequests();
+      console.info("[Avante DataProvider] ApiProvider.collect() - endpoints selecionados:", selectedEntries.map((item) => ({ url: item.url, method: item.method, status: item.status })));
+
       if (!selectedEntries.length) {
+        console.warn("[Avante DataProvider] ApiProvider falhou: nenhuma API JSON selecionada.");
         return null;
       }
 
@@ -386,6 +405,8 @@
         lastUpdated: new Date().toISOString()
       };
 
+      console.info("[Avante DataProvider] ApiProvider retornou métricas reais.", normalized);
+
       if (this.debug) {
         logDebug("Dados combinados através das APIs selecionadas", normalized);
       }
@@ -415,6 +436,21 @@
 
     collect() {
       const bodyText = document.body?.innerText || "";
+      const matchingElements = Array.from(document.querySelectorAll("div, span, p, td, th, li"))
+        .filter((element) => /venda|pedido|produto|lucro|meta|ticket|valor|receita|quantidade|total/i.test(element.textContent || ""))
+        .slice(0, 10)
+        .map((element) => ({
+          tag: element.tagName,
+          className: element.className,
+          text: (element.textContent || "").trim().slice(0, 160)
+        }));
+
+      console.info("[Avante DataProvider] DomProvider avaliando bodyText.", {
+        bodyLength: bodyText.length,
+        sample: bodyText.slice(0, 200),
+        matchingElements
+      });
+
       const metrics = {
         totalSales: this.extractFromText(/(?:valor|venda|receita).*?([\d.,]+)/i, bodyText),
         totalOrders: this.extractFromText(/(?:pedido|ordens).*?([\d.,]+)/i, bodyText),
@@ -427,11 +463,14 @@
         lastUpdated: new Date().toISOString()
       };
 
+      const hasMetrics = Boolean(metrics.totalSales || metrics.totalOrders || metrics.totalProductsSold || metrics.totalProfit || metrics.salesTarget);
+      console.info("[Avante DataProvider] DomProvider result.", { hasMetrics, metrics });
+
       if (this.debug) {
         logDebug("Dados capturados via DOM", metrics);
       }
 
-      return metrics.totalSales || metrics.totalOrders || metrics.totalProductsSold ? metrics : null;
+      return hasMetrics ? metrics : null;
     }
   }
 
@@ -442,7 +481,16 @@
 
     collect() {
       const tables = Array.from(document.querySelectorAll("table"));
+      const tableReport = tables.map((table, index) => ({
+        index,
+        rows: table.querySelectorAll("tr").length,
+        html: table.outerHTML.slice(0, 220)
+      }));
+
+      console.info("[Avante DataProvider] TableProvider encontrou tabelas.", { count: tables.length, tables: tableReport });
+
       if (!tables.length) {
+        console.warn("[Avante DataProvider] TableProvider falhou: nenhuma tabela encontrada no DOM.");
         return null;
       }
 
@@ -503,7 +551,9 @@
       });
 
       metrics.avgTicket = metrics.totalOrders > 0 ? metrics.totalSales / metrics.totalOrders : 0;
-      return metrics.totalSales || metrics.totalOrders || metrics.totalProductsSold ? metrics : null;
+      const hasMetrics = Boolean(metrics.totalSales || metrics.totalOrders || metrics.totalProductsSold || metrics.totalProfit || metrics.salesTarget);
+      console.info("[Avante DataProvider] TableProvider result.", { hasMetrics, metrics });
+      return hasMetrics ? metrics : null;
     }
   }
 
@@ -540,60 +590,64 @@
         this.tableProvider.collect()
       ]);
 
-      const availableResults = [
-        apiResult.status === "fulfilled" ? apiResult.value : null,
-        domResult.status === "fulfilled" ? domResult.value : null,
-        tableResult.status === "fulfilled" ? tableResult.value : null
-      ].filter(Boolean);
+      const results = {
+        api: apiResult.status === "fulfilled" ? apiResult.value : null,
+        dom: domResult.status === "fulfilled" ? domResult.value : null,
+        table: tableResult.status === "fulfilled" ? tableResult.value : null
+      };
 
-      const selected =
-        availableResults.find((item) => item.source === "api") ||
-        availableResults.find((item) => item.source === "dom") ||
-        availableResults.find((item) => item.source === "table") ||
-        this.buildFallbackData();
+      const reasonParts = [];
+      if (!results.api) {
+        reasonParts.push("Nenhuma API JSON encontrada.");
+      }
+      if (!results.dom) {
+        reasonParts.push("Nenhum elemento correspondente encontrado no DOM.");
+      }
+      if (!results.table) {
+        reasonParts.push("Nenhuma tabela compatível encontrada.");
+      }
+
+      const selected = results.api || results.dom || results.table;
+      const providerName = selected?.source || "none";
+
+      console.info("[Avante DataProvider] Provider escolhido:", {
+        providerName,
+        api: Boolean(results.api),
+        dom: Boolean(results.dom),
+        table: Boolean(results.table),
+        reason: reasonParts.join(" ")
+      });
+
+      if (!selected) {
+        const emptyState = {
+          source: "none",
+          status: "empty",
+          reason: reasonParts.join(" "),
+          lastUpdated: new Date().toISOString()
+        };
+        console.warn("[Avante DataProvider] Dados reais ausentes.", emptyState);
+        return emptyState;
+      }
 
       if (this.debug) {
         logDebug("Tempo de atualização do provider", {
           durationMs: Math.round(performance.now() - startedAt),
-          source: selected.source
+          source: providerName
         });
       }
 
       return {
         ...selected,
-        lastUpdated: new Date().toISOString(),
-        salesTrend: selected.salesTrend?.length ? selected.salesTrend : [12_000, 16_000, 14_500, 18_200, 19_400, 23_400, 25_700],
-        salesByDay: selected.salesByDay?.length ? selected.salesByDay : [
-          { day: "Seg", value: 22000 },
-          { day: "Ter", value: 24500 },
-          { day: "Qua", value: 28900 },
-          { day: "Qui", value: 31500 },
-          { day: "Sex", value: 28000 },
-          { day: "Sáb", value: 26000 },
-          { day: "Dom", value: 23000 }
-        ],
-        categories: selected.categories?.length ? selected.categories : [
-          { label: "Eletrônicos", value: 38 },
-          { label: "Acessórios", value: 24 },
-          { label: "Casa", value: 18 },
-          { label: "Escritório", value: 20 }
-        ]
+        status: "ok",
+        lastUpdated: new Date().toISOString()
       };
     }
 
     buildFallbackData() {
       return {
-        totalSales: 0,
-        totalProductsSold: 0,
-        totalProfit: 0,
-        totalOrders: 0,
-        salesTarget: 0,
-        avgTicket: 0,
-        bestProduct: "Nenhum produto identificado",
-        salesTrend: [],
-        salesByDay: [],
-        categories: [],
-        source: "fallback",
+        source: "none",
+        status: "empty",
+        reason: "Nenhuma API JSON encontrada. Nenhum elemento correspondente encontrado. Nenhuma tabela compatível encontrada.",
         lastUpdated: new Date().toISOString()
       };
     }

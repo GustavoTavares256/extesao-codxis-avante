@@ -24,7 +24,17 @@
       bodyText.includes("dashboard")
     ];
 
-    return avanteSignals.some(Boolean);
+    const matched = avanteSignals.some(Boolean);
+    console.info("[Avante Dashboard] Diagnóstico de página.", {
+      url: window.location.href,
+      hostname,
+      pathname,
+      title,
+      matched,
+      signals: avanteSignals
+    });
+
+    return matched;
   }
 
   function injectScript(src) {
@@ -71,14 +81,27 @@
 
   async function bootstrapDashboard() {
     if (document.getElementById(APP_ID)) {
+      console.info("[Avante Dashboard] Bootstrap ignorado: dashboard já montado.");
       return;
     }
 
     try {
+      console.info("[Avante Dashboard] Iniciando bootstrap do dashboard.", {
+        url: window.location.href,
+        readyState: document.readyState
+      });
+
       await injectStylesheet();
+      console.info("[Avante Dashboard] CSS do dashboard carregado.");
+
       await injectScript("network-inspector.js");
+      console.info("[Avante Dashboard] network-inspector.js injetado no contexto da página.");
+
       await injectScript("api.js");
+      console.info("[Avante Dashboard] api.js carregado no contexto do content script.");
+
       await injectScript("dashboard.js");
+      console.info("[Avante Dashboard] dashboard.js carregado no contexto do content script.");
 
       const storedSelection = await chrome.storage.local.get("avante-web-selected-endpoints");
       const selectedEndpoints = Array.isArray(storedSelection["avante-web-selected-endpoints"])
@@ -98,6 +121,7 @@
         return;
       }
 
+      console.info("[Avante Dashboard] Criando instância do dashboard.");
       dashboardInstance = new window.AvanteDashboardApp({ rootId: APP_ID });
       dashboardInstance.init();
       window.__avanteDashboardInstance = dashboardInstance;

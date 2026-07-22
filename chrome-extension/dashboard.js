@@ -100,6 +100,13 @@
     async loadData(isRefresh = false) {
       try {
         const data = await this.api.getDashboardData();
+
+        if (data?.status === "empty") {
+          this.showEmptyState(data.reason || "Nenhum dado real foi encontrado.");
+          this.renderDebugPanel();
+          return;
+        }
+
         this.updateMetrics(data);
         this.renderDebugPanel();
         await this.ensureChartsLoaded();
@@ -110,19 +117,26 @@
         }
       } catch (error) {
         console.error("[Avante Dashboard] Erro ao buscar dados:", error);
-        this.showErrorState();
+        this.showEmptyState("Erro de execução do DataProvider: " + error.message);
       }
     }
 
     updateMetrics(data) {
+      const incoming = Number(data.totalSales || 0);
+      const profit = Number(data.totalProfit || 0);
+      const outgoing = Math.max(incoming - profit, 0);
+      const target = Number(data.salesTarget || 0);
+      const orders = Number(data.totalOrders || 0);
+      const products = Number(data.totalProductsSold || 0);
+
       const metrics = [
-        { key: "totalSales", label: "💰 Valor total das vendas", type: "currency" },
-        { key: "totalProductsSold", label: "📦 Produtos vendidos", type: "number" },
-        { key: "totalProfit", label: "📈 Lucro total", type: "currency" },
+        { key: "totalSales", label: "💰 Entradas", type: "currency" },
+        { key: "totalProfit", label: "📈 Lucro líquido", type: "currency" },
         { key: "totalOrders", label: "🛒 Pedidos", type: "number" },
+        { key: "totalProductsSold", label: "📦 Produtos vendidos", type: "number" },
         { key: "salesTarget", label: "🎯 Meta de vendas", type: "progress" },
         { key: "avgTicket", label: "📊 Ticket médio", type: "currency" },
-        { key: "bestProduct", label: "🏆 Produto mais vendido", type: "text" }
+        { key: "bestProduct", label: "🏆 Produto principal", type: "text" }
       ];
 
       const container = document.getElementById("avante-dashboard-metrics");
@@ -130,7 +144,20 @@
         return;
       }
 
-      container.innerHTML = metrics
+      const summaryCards = [
+        {
+          label: "💸 Saídas estimadas",
+          value: this.formatValue(outgoing, "currency"),
+          type: "currency"
+        },
+        {
+          label: "📊 Fluxo bruto",
+          value: this.formatValue(incoming - outgoing, "currency"),
+          type: "currency"
+        }
+      ];
+
+      const metricCards = metrics
         .map((item) => {
           const rawValue = data[item.key];
           const value = this.formatValue(rawValue, item.type);
@@ -139,11 +166,22 @@
             <div class="avante-card avante-card-animated">
               <div class="avante-card-label">${item.label}</div>
               <div class="avante-card-value">${value}</div>
-              ${item.type === "progress" ? this.renderProgressBar(data.salesTarget, data.totalSales) : ""}
+              ${item.type === "progress" ? this.renderProgressBar(target, incoming) : ""}
             </div>
           `;
         })
         .join("");
+
+      const extraCards = summaryCards
+        .map((item) => `
+          <div class="avante-card avante-card-animated">
+            <div class="avante-card-label">${item.label}</div>
+            <div class="avante-card-value">${item.value}</div>
+          </div>
+        `)
+        .join("");
+
+      container.innerHTML = `${metricCards}${extraCards}`;
 
       const lastUpdated = document.createElement("div");
       lastUpdated.className = "avante-last-update";
@@ -152,7 +190,9 @@
     }
 
     renderProgressBar(target, currentValue) {
-      const progress = Math.min((currentValue / target) * 100, 100);
+      const safeTarget = Number(target || 0);
+      const safeCurrent = Number(currentValue || 0);
+      const progress = safeTarget > 0 ? Math.min((safeCurrent / safeTarget) * 100, 100) : 0;
 
       return `
         <div class="avante-progress-wrap">
@@ -165,20 +205,22 @@
     }
 
     formatValue(value, type) {
+      const normalized = Number(value || 0);
+
       switch (type) {
         case "currency":
           return new Intl.NumberFormat("pt-BR", {
             style: "currency",
             currency: "BRL"
-          }).format(value);
+          }).format(normalized || 0);
         case "number":
-          return new Intl.NumberFormat("pt-BR").format(value);
+          return new Intl.NumberFormat("pt-BR").format(normalized || 0);
         case "progress":
-          return `${new Intl.NumberFormat("pt-BR").format(value)} / meta`;
+          return `${new Intl.NumberFormat("pt-BR").format(normalized || 0)} / meta`;
         case "text":
-          return value;
+          return value || "Sem informação";
         default:
-          return value;
+          return value ?? "Sem informação";
       }
     }
 
@@ -372,7 +414,7 @@
       }
     }
 
-    showErrorState() {
+    showEmptyState(reason) {
       const container = document.getElementById("avante-dashboard-metrics");
       if (!container) {
         return;
@@ -380,8 +422,8 @@
 
       container.innerHTML = `
         <div class="avante-card avante-error-card">
-          <div class="avante-card-label">⚠️ Dados indisponíveis</div>
-          <div class="avante-card-value">Não foi possível carregar os indicadores do Avante Web.</div>
+          <div class="avante-card-label">⚠️ Dados reais indisponíveis</div>
+          <div class="avante-card-value">${reason}</div>
         </div>
       `;
     }

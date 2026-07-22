@@ -8,9 +8,13 @@
    * Por isso ele consegue interceptar fetch e XMLHttpRequest de forma mais confiável dentro do MV3.
    */
   if (window.__avanteNetworkInspectorInstalled) {
+    console.info("[Avante Network Inspector] Script já instalado no contexto da página.");
     return;
   }
 
+  console.info("[Avante Network Inspector] Instalando interceptor no contexto da página.", {
+    url: window.location.href
+  });
   window.__avanteNetworkInspectorInstalled = true;
 
   const JSON_CONTENT_TYPES = /application\/json|text\/json|application\/ld\+json|application\/problem\+json/i;
@@ -28,7 +32,16 @@
     const normalized = String(url || "").toLowerCase();
     const ignoredByExtension = IGNORE_EXTENSIONS.test(normalized);
     const ignoredByType = /text\/css|application\/javascript|text\/javascript|font\//i.test(contentType);
-    return ignoredByExtension || ignoredByType;
+    const ignored = ignoredByExtension || ignoredByType;
+
+    if (ignored) {
+      console.info("[Avante Network Inspector] Requisição ignorada.", {
+        url: normalized,
+        contentType
+      });
+    }
+
+    return ignored;
   }
 
   function safeParseJson(value, contentType = "") {
@@ -98,6 +111,14 @@
       return;
     }
 
+    console.info("[Avante Network Inspector] Requisição capturada no contexto da página.", {
+      url: normalizedUrl,
+      method: entry.method || "GET",
+      status: entry.status || 0,
+      contentType: entry.contentType || "",
+      jsonDetected: Boolean(entry.jsonDetected)
+    });
+
     const payload = {
       id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
       timestamp: new Date().toISOString(),
@@ -134,6 +155,14 @@
         const contentType = headers["content-type"] || "";
         const responseText = await response.clone().text();
         const jsonDetected = safeParseJson(responseText, contentType);
+
+        if (!jsonDetected) {
+          console.info("[Avante Network Inspector] Resposta descartada porque não foi possível interpretar como JSON.", {
+            url,
+            contentType,
+            status: response.status
+          });
+        }
 
         dispatchRequest({
           url,
