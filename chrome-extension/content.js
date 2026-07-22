@@ -116,15 +116,17 @@
         "*"
       );
 
-      if (!window.AvanteDashboardApp) {
-        console.warn("[Avante Dashboard] Dashboard JS não foi carregado corretamente.");
-        return;
-      }
+      window.postMessage(
+        {
+          source: "avante-dashboard-bootstrap",
+          payload: {
+            rootId: APP_ID
+          }
+        },
+        "*"
+      );
 
-      console.info("[Avante Dashboard] Criando instância do dashboard.");
-      dashboardInstance = new window.AvanteDashboardApp({ rootId: APP_ID });
-      dashboardInstance.init();
-      window.__avanteDashboardInstance = dashboardInstance;
+      console.info("[Avante Dashboard] Bootstrap enviado para o mundo da página.");
     } catch (error) {
       console.error("[Avante Dashboard] Erro ao iniciar dashboard:", error);
     }

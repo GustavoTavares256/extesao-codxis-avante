@@ -610,49 +610,123 @@
       const selected = results.api || results.dom || results.table;
       const providerName = selected?.source || "none";
 
-      console.info("[Avante DataProvider] Provider escolhido:", {
+      const diagnostics = {
         providerName,
         api: Boolean(results.api),
         dom: Boolean(results.dom),
         table: Boolean(results.table),
-        reason: reasonParts.join(" ")
-      });
+        reason: reasonParts.join(" "),
+        durationMs: Math.round(performance.now() - startedAt)
+      };
+
+      console.info("[Avante DataProvider] Provider escolhido:", diagnostics);
 
       if (!selected) {
         const emptyState = {
           source: "none",
           status: "empty",
           reason: reasonParts.join(" "),
-          lastUpdated: new Date().toISOString()
+          lastUpdated: new Date().toISOString(),
+          diagnostics
         };
         console.warn("[Avante DataProvider] Dados reais ausentes.", emptyState);
         return emptyState;
       }
 
       if (this.debug) {
-        logDebug("Tempo de atualização do provider", {
-          durationMs: Math.round(performance.now() - startedAt),
-          source: providerName
-        });
+        logDebug("Tempo de atualização do provider", diagnostics);
       }
 
       return {
         ...selected,
         status: "ok",
-        lastUpdated: new Date().toISOString()
-      };
-    }
-
-    buildFallbackData() {
-      return {
-        source: "none",
-        status: "empty",
-        reason: "Nenhuma API JSON encontrada. Nenhum elemento correspondente encontrado. Nenhuma tabela compatível encontrada.",
-        lastUpdated: new Date().toISOString()
+        lastUpdated: new Date().toISOString(),
+        diagnostics
       };
     }
   }
 
+  class MetricsService {
+    constructor({ provider = null, debug = DEBUG } = {}) {
+      this.debug = debug;
+      this.provider = provider || new DataProvider({ debug });
+      this.cache = null;
+      this.cacheTtlMs = 30000;
+      this.settingsCache = null;
+    }
+
+    async loadSettings() {
+      try {
+        if (!globalThis.chrome?.storage?.sync) {
+          return {
+            metaMonthly: null,
+            theme: "dark",
+            indicatorsVisible: [],
+            autoRefresh: true
+          };
+        }
+
+        const result = await globalThis.chrome.storage.sync.get({
+          metaMonthly: null,
+          theme: "dark",
+          indicatorsVisible: [],
+          autoRefresh: true
+        });
+
+        this.settingsCache = {
+          metaMonthly: Number(result.metaMonthly || 0),
+          theme: result.theme || "dark",
+          indicatorsVisible: Array.isArray(result.indicatorsVisible) ? result.indicatorsVisible : [],
+          autoRefresh: Boolean(result.autoRefresh)
+        };
+
+        return this.settingsCache;
+      } catch (error) {
+        console.warn("[Avante MetricsService] Falha ao carregar configurações.", error);
+        return {
+          metaMonthly: null,
+          theme: "dark",
+          indicatorsVisible: [],
+          autoRefresh: true
+        };
+      }
+    }
+
+    async getSettings() {
+      if (this.settingsCache) {
+        return this.settingsCache;
+      }
+
+      return this.loadSettings();
+    }
+
+    async getDashboardData() {
+      const now = Date.now();
+      if (this.cache && now - this.cache.timestamp < this.cacheTtlMs) {
+        return this.cache.snapshot;
+      }
+
+      const providerData = await this.provider.getDashboardData();
+      const settings = await this.getSettings();
+      const snapshot = {
+        ...providerData,
+        metaMonthly: settings.metaMonthly ?? null,
+        theme: settings.theme || "dark",
+        indicatorsVisible: settings.indicatorsVisible || [],
+        autoRefresh: Boolean(settings.autoRefresh)
+      };
+
+      this.cache = {
+        timestamp: now,
+        snapshot
+      };
+
+      console.info("[Avante MetricsService] Snapshot pronto para o dashboard.", snapshot);
+      return snapshot;
+    }
+  }
+
   window.AvanteDataProvider = new DataProvider({ debug: DEBUG });
-  window.AvanteDashboardApi = window.AvanteDataProvider;
+  window.AvanteMetricsService = new MetricsService({ provider: window.AvanteDataProvider, debug: DEBUG });
+  window.AvanteDashboardApi = window.AvanteMetricsService;
 })();

@@ -8,10 +8,14 @@
   class AvanteDashboardApp {
     constructor({ rootId = "avante-web-dashboard-root" } = {}) {
       this.rootId = rootId;
-      this.api = window.AvanteDashboardApi;
+      this.metricsService = window.AvanteMetricsService || window.AvanteDashboardApi;
+      this.api = this.metricsService;
       this.intervalId = null;
       this.chartInstances = {};
       this.initialized = false;
+      this.mountObserver = null;
+      this.rootElement = null;
+      this.anchorElement = null;
     }
 
     async init() {
@@ -31,21 +35,41 @@
     }
 
     mountDashboard() {
+      const existing = document.getElementById(this.rootId);
+      if (existing) {
+        this.rootElement = existing;
+        const toggleButton = existing.querySelector("#avante-dashboard-toggle");
+        if (toggleButton && !toggleButton.dataset.bound) {
+          toggleButton.addEventListener("click", () => this.toggleDashboard());
+          toggleButton.dataset.bound = "true";
+        }
+        this.startMountObserver();
+        return;
+      }
+
       const host = document.createElement("div");
       host.id = this.rootId;
-      host.className = "avante-dashboard-shell";
+      host.className = "avante-dashboard-host avante-dashboard-shell";
       host.innerHTML = `
         <div class="avante-dashboard-panel">
           <div class="avante-dashboard-header">
             <div>
               <span class="avante-badge">Avante Web</span>
-              <h2>Dashboard Executivo</h2>
+              <h2>Dashboard Executivo Premium</h2>
             </div>
             <div class="avante-header-actions">
               <button class="avante-toggle-btn" id="avante-dashboard-toggle" aria-label="Recolher dashboard">▾</button>
             </div>
           </div>
           <div class="avante-dashboard-body" id="avante-dashboard-body">
+            <div class="avante-dashboard-filters">
+              <button class="avante-filter-pill active">Hoje</button>
+              <button class="avante-filter-pill">Ontem</button>
+              <button class="avante-filter-pill">Semana</button>
+              <button class="avante-filter-pill">Mês</button>
+              <button class="avante-filter-pill">Ano</button>
+              <button class="avante-filter-pill">Personalizado</button>
+            </div>
             <div class="avante-dashboard-grid" id="avante-dashboard-metrics"></div>
             <div class="avante-dashboard-charts">
               <div class="avante-chart-card">
@@ -61,6 +85,28 @@
                 <canvas id="chart-sales-trend"></canvas>
               </div>
             </div>
+            <div class="avante-dashboard-bottom-grid">
+              <div class="avante-alerts-card">
+                <div class="avante-section-title">Alertas</div>
+                <div class="avante-alert-list">
+                  <div class="avante-alert-item danger">🔴 Estoque baixo</div>
+                  <div class="avante-alert-item warning">🟡 Meta abaixo do esperado</div>
+                  <div class="avante-alert-item success">🟢 Crescimento nas vendas</div>
+                  <div class="avante-alert-item info">🔵 Caixa positivo</div>
+                  <div class="avante-alert-item accent">🟠 Produtos sem venda</div>
+                </div>
+              </div>
+              <div class="avante-rankings-card">
+                <div class="avante-section-title">Top rankings</div>
+                <div class="avante-rankings-grid">
+                  <div class="avante-ranking-box"><strong>Top 10 produtos</strong><span>Aguardando integração...</span></div>
+                  <div class="avante-ranking-box"><strong>Top clientes</strong><span>Dados indisponíveis.</span></div>
+                  <div class="avante-ranking-box"><strong>Top vendedores</strong><span>Dados indisponíveis.</span></div>
+                  <div class="avante-ranking-box"><strong>Top categorias</strong><span>Dados indisponíveis.</span></div>
+                  <div class="avante-ranking-box"><strong>Top formas de pagamento</strong><span>Dados indisponíveis.</span></div>
+                </div>
+              </div>
+            </div>
             <div class="avante-debug-panel" id="avante-debug-panel">
               <div class="avante-debug-header">
                 <strong>Modo de depuração</strong>
@@ -72,10 +118,64 @@
         </div>
       `;
 
-      document.body.appendChild(host);
+      this.rootElement = host;
+      this.placeDashboardHost(host);
 
-      const toggleButton = document.getElementById("avante-dashboard-toggle");
-      toggleButton.addEventListener("click", () => this.toggleDashboard());
+      const toggleButton = host.querySelector("#avante-dashboard-toggle");
+      if (toggleButton) {
+        toggleButton.addEventListener("click", () => this.toggleDashboard());
+      }
+
+      this.startMountObserver();
+    }
+
+    findMountAnchor() {
+      const selectors = [
+        "header",
+        "[role='banner']",
+        ".app-header",
+        ".main-header",
+        ".topbar",
+        ".navbar",
+        ".header",
+        ".layout-header"
+      ];
+
+      for (const selector of selectors) {
+        const found = document.querySelector(selector);
+        if (found && found.isConnected) {
+          return found;
+        }
+      }
+
+      return document.body?.firstElementChild || document.body;
+    }
+
+    placeDashboardHost(host) {
+      const anchor = this.findMountAnchor();
+      if (anchor && anchor.parentNode && anchor !== host) {
+        anchor.insertAdjacentElement("afterend", host);
+        return;
+      }
+
+      if (document.body && !host.isConnected) {
+        document.body.appendChild(host);
+      }
+    }
+
+    startMountObserver() {
+      if (this.mountObserver || !document.body) {
+        return;
+      }
+
+      this.mountObserver = new MutationObserver(() => {
+        this.placeDashboardHost(this.rootElement);
+      });
+
+      this.mountObserver.observe(document.body, {
+        childList: true,
+        subtree: true
+      });
     }
 
     renderSkeleton() {
@@ -102,7 +202,7 @@
         const data = await this.api.getDashboardData();
 
         if (data?.status === "empty") {
-          this.showEmptyState(data.reason || "Nenhum dado real foi encontrado.");
+          this.showEmptyState(data.reason || "Fonte de dados não encontrada.");
           this.renderDebugPanel();
           return;
         }
@@ -125,18 +225,31 @@
       const incoming = Number(data.totalSales || 0);
       const profit = Number(data.totalProfit || 0);
       const outgoing = Math.max(incoming - profit, 0);
-      const target = Number(data.salesTarget || 0);
+      const target = Number(data.metaMonthly || data.salesTarget || 0);
       const orders = Number(data.totalOrders || 0);
       const products = Number(data.totalProductsSold || 0);
+      const customers = Number(data.totalCustomers || 0);
+      const progress = target > 0 ? Math.min((incoming / target) * 100, 100) : 0;
+      const revenueState = incoming > 0 ? this.formatValue(incoming, "currency") : "Aguardando integração...";
+      const profitState = profit > 0 ? this.formatValue(profit, "currency") : "Dados indisponíveis.";
+      const salesState = orders > 0 ? this.formatValue(orders, "number") : "Dados indisponíveis.";
+      const productsState = products > 0 ? this.formatValue(products, "number") : "Dados indisponíveis.";
+      const customersState = customers > 0 ? this.formatValue(customers, "number") : "Dados indisponíveis.";
+      const champion = data.bestProduct || "Aguardando integração...";
+      const targetState = target > 0 ? this.formatValue(target, "currency") : "Aguardando integração...";
+      const lastUpdated = data.lastUpdated ? new Date(data.lastUpdated).toLocaleString("pt-BR") : "Aguardando integração...";
 
       const metrics = [
-        { key: "totalSales", label: "💰 Entradas", type: "currency" },
-        { key: "totalProfit", label: "📈 Lucro líquido", type: "currency" },
-        { key: "totalOrders", label: "🛒 Pedidos", type: "number" },
-        { key: "totalProductsSold", label: "📦 Produtos vendidos", type: "number" },
-        { key: "salesTarget", label: "🎯 Meta de vendas", type: "progress" },
-        { key: "avgTicket", label: "📊 Ticket médio", type: "currency" },
-        { key: "bestProduct", label: "🏆 Produto principal", type: "text" }
+        { label: "💰 Entradas", value: revenueState },
+        { label: "💸 Saídas", value: this.formatValue(outgoing, "currency") },
+        { label: "📈 Lucro", value: profitState },
+        { label: "🛒 Vendas", value: salesState },
+        { label: "📦 Produtos vendidos", value: productsState },
+        { label: "📋 Pedidos", value: this.formatValue(orders, "number") },
+        { label: "👥 Clientes", value: customersState },
+        { label: "🏆 Produto campeão", value: champion },
+        { label: "🎯 Meta do mês", value: targetState },
+        { label: "📊 Progresso de vendas", value: this.formatValue(progress, "percent") }
       ];
 
       const container = document.getElementById("avante-dashboard-metrics");
@@ -144,49 +257,20 @@
         return;
       }
 
-      const summaryCards = [
-        {
-          label: "💸 Saídas estimadas",
-          value: this.formatValue(outgoing, "currency"),
-          type: "currency"
-        },
-        {
-          label: "📊 Fluxo bruto",
-          value: this.formatValue(incoming - outgoing, "currency"),
-          type: "currency"
-        }
-      ];
-
-      const metricCards = metrics
-        .map((item) => {
-          const rawValue = data[item.key];
-          const value = this.formatValue(rawValue, item.type);
-
-          return `
-            <div class="avante-card avante-card-animated">
-              <div class="avante-card-label">${item.label}</div>
-              <div class="avante-card-value">${value}</div>
-              ${item.type === "progress" ? this.renderProgressBar(target, incoming) : ""}
-            </div>
-          `;
-        })
-        .join("");
-
-      const extraCards = summaryCards
-        .map((item) => `
-          <div class="avante-card avante-card-animated">
+      container.innerHTML = metrics
+        .map((item, index) => `
+          <div class="avante-card avante-card-animated avante-card-${index + 1}">
             <div class="avante-card-label">${item.label}</div>
             <div class="avante-card-value">${item.value}</div>
+            ${item.label === "🎯 Meta do mês" ? this.renderProgressBar(target, incoming) : ""}
           </div>
         `)
         .join("");
 
-      container.innerHTML = `${metricCards}${extraCards}`;
-
-      const lastUpdated = document.createElement("div");
-      lastUpdated.className = "avante-last-update";
-      lastUpdated.innerHTML = `🕒 Última atualização: ${new Date(data.lastUpdated).toLocaleString("pt-BR")}`;
-      container.appendChild(lastUpdated);
+      const timestamp = document.createElement("div");
+      timestamp.className = "avante-last-update";
+      timestamp.innerHTML = `🕒 Última atualização: ${lastUpdated}`;
+      container.appendChild(timestamp);
     }
 
     renderProgressBar(target, currentValue) {
@@ -217,10 +301,12 @@
           return new Intl.NumberFormat("pt-BR").format(normalized || 0);
         case "progress":
           return `${new Intl.NumberFormat("pt-BR").format(normalized || 0)} / meta`;
+        case "percent":
+          return `${normalized.toFixed(1)}%`;
         case "text":
-          return value || "Sem informação";
+          return value || "Aguardando dados...";
         default:
-          return value ?? "Sem informação";
+          return value ?? "Aguardando dados...";
       }
     }
 
@@ -420,14 +506,39 @@
         return;
       }
 
+      const message = reason || "Aguardando integração...";
+
       container.innerHTML = `
         <div class="avante-card avante-error-card">
           <div class="avante-card-label">⚠️ Dados reais indisponíveis</div>
-          <div class="avante-card-value">${reason}</div>
+          <div class="avante-card-value">${message}</div>
         </div>
       `;
     }
   }
 
+  function bootstrapDashboardFromPageMessage() {
+    if (window.__avanteDashboardInstance || window.__avanteDashboardBootstrapped) {
+      return;
+    }
+
+    window.__avanteDashboardBootstrapped = true;
+
+    const messageHandler = (event) => {
+      if (!event?.data || event.data?.source !== "avante-dashboard-bootstrap") {
+        return;
+      }
+
+      const { rootId = "avante-web-dashboard-root" } = event.data.payload || {};
+      const dashboardInstance = new AvanteDashboardApp({ rootId });
+      dashboardInstance.init();
+      window.__avanteDashboardInstance = dashboardInstance;
+      window.removeEventListener("message", messageHandler);
+    };
+
+    window.addEventListener("message", messageHandler, false);
+  }
+
+  bootstrapDashboardFromPageMessage();
   window.AvanteDashboardApp = AvanteDashboardApp;
 })();
