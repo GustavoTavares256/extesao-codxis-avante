@@ -204,7 +204,7 @@
               <span class="avante-debug-method">${api.method}</span>
               <span class="avante-debug-url">${api.url}</span>
               <span class="avante-debug-status">${api.status}</span>
-              <span class="avante-debug-duration">${api.duration}</span>
+              <span class="avante-debug-duration">${api.time || api.duration || 0} ms</span>
               <code class="avante-debug-body">${bodyPreview}</code>
             </label>
           `;

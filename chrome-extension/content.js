@@ -70,8 +70,22 @@
 
     try {
       await injectStylesheet();
+      await injectScript("network-inspector.js");
       await injectScript("api.js");
       await injectScript("dashboard.js");
+
+      const storedSelection = await chrome.storage.local.get("avante-web-selected-endpoints");
+      const selectedEndpoints = Array.isArray(storedSelection["avante-web-selected-endpoints"])
+        ? storedSelection["avante-web-selected-endpoints"]
+        : [];
+
+      window.postMessage(
+        {
+          source: "avante-dashboard-selection-sync",
+          payload: selectedEndpoints
+        },
+        "*"
+      );
 
       if (!window.AvanteDashboardApp) {
         console.warn("[Avante Dashboard] Dashboard JS não foi carregado corretamente.");

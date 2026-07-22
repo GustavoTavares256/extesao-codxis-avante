@@ -21,7 +21,7 @@
   ],
   "web_accessible_resources": [
     {
-      "resources": ["api.js", "dashboard.js", "style.css"],
+      "resources": ["api.js", "network-inspector.js", "dashboard.js", "style.css"],
       "matches": ["https://*/*"]
     }
   ]
