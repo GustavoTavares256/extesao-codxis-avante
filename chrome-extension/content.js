@@ -100,19 +100,32 @@
     }
   }
 
-  chrome.runtime.onMessage.addListener((message) => {
+  chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     if (message?.type === "refresh-dashboard") {
-      if (dashboardInstance) {
-        dashboardInstance.loadData(true);
-      } else {
-        bootstrapDashboard();
-      }
+      const runRefresh = async () => {
+        try {
+          if (dashboardInstance) {
+            await dashboardInstance.loadData(true);
+          } else {
+            await bootstrapDashboard();
+          }
+
+          sendResponse({ ok: true, source: "content-script" });
+        } catch (error) {
+          console.error("[Avante Dashboard] Erro ao atualizar dados:", error);
+          sendResponse({ ok: false, error: error.message });
+        }
+      };
+
+      runRefresh();
+      return true;
     }
 
     if (message?.type === "toggle-dashboard") {
       if (dashboardInstance) {
         dashboardInstance.toggleDashboard();
       }
+      sendResponse({ ok: true, source: "content-script" });
     }
   });
 
