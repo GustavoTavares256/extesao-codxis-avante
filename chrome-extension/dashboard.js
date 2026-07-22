@@ -58,7 +58,11 @@
               <h2>Dashboard Executivo Premium</h2>
             </div>
             <div class="avante-header-actions">
-              <button class="avante-toggle-btn" id="avante-dashboard-toggle" aria-label="Recolher dashboard">▾</button>
+              <div class="avante-goal-editor">
+                <input id="avante-monthly-goal-input" type="number" min="0" step="0.01" placeholder="Meta do mês" />
+                <button class="avante-save-meta-btn" id="avante-save-meta-btn">Salvar meta</button>
+              </div>
+              <button class="avante-toggle-btn" id="avante-dashboard-toggle" aria-label="Fechar dashboard">Fechar</button>
             </div>
           </div>
           <div class="avante-dashboard-body" id="avante-dashboard-body">
@@ -126,6 +130,11 @@
         toggleButton.addEventListener("click", () => this.toggleDashboard());
       }
 
+      const saveGoalButton = host.querySelector("#avante-save-meta-btn");
+      if (saveGoalButton) {
+        saveGoalButton.addEventListener("click", () => this.saveMetaGoal());
+      }
+
       this.startMountObserver();
     }
 
@@ -154,7 +163,22 @@
     placeDashboardHost(host) {
       const anchor = this.findMountAnchor();
       if (anchor && anchor.parentNode && anchor !== host) {
-        anchor.insertAdjacentElement("afterend", host);
+        const isHeaderLike = /header|banner|topbar|navbar|main-header|layout-header/i.test(anchor.tagName || "") || anchor.matches("header, [role='banner'], .app-header, .main-header, .topbar, .navbar, .header, .layout-header");
+
+        if (isHeaderLike) {
+          host.classList.add("avante-dashboard-embedded");
+          host.style.flex = "1 1 auto";
+          host.style.width = "100%";
+          host.style.minWidth = "0";
+          if (!anchor.contains(host)) {
+            anchor.appendChild(host);
+          }
+          return;
+        }
+
+        if (!host.isConnected) {
+          anchor.insertAdjacentElement("afterend", host);
+        }
         return;
       }
 
@@ -176,6 +200,28 @@
         childList: true,
         subtree: true
       });
+    }
+
+    async saveMetaGoal() {
+      const input = document.getElementById("avante-monthly-goal-input");
+      if (!input) {
+        return;
+      }
+
+      const value = Number(input.value || 0);
+      if (!Number.isFinite(value) || value < 0) {
+        return;
+      }
+
+      try {
+        await chrome.storage.sync.set({
+          metaMonthly: value
+        });
+
+        await this.loadData(true);
+      } catch (error) {
+        console.error("[Avante Dashboard] Falha ao salvar meta mensal.", error);
+      }
     }
 
     renderSkeleton() {
@@ -238,6 +284,10 @@
       const champion = data.bestProduct || "Aguardando integração...";
       const targetState = target > 0 ? this.formatValue(target, "currency") : "Aguardando integração...";
       const lastUpdated = data.lastUpdated ? new Date(data.lastUpdated).toLocaleString("pt-BR") : "Aguardando integração...";
+      const goalInput = document.getElementById("avante-monthly-goal-input");
+      if (goalInput && target > 0) {
+        goalInput.value = String(target);
+      }
 
       const metrics = [
         { label: "💰 Entradas", value: revenueState },
@@ -487,8 +537,8 @@
       }
 
       const isCollapsed = body.classList.toggle("collapsed");
-      button.textContent = isCollapsed ? "▸" : "▾";
-      button.setAttribute("aria-label", isCollapsed ? "Expandir dashboard" : "Recolher dashboard");
+      button.textContent = isCollapsed ? "Reabrir" : "Fechar";
+      button.setAttribute("aria-label", isCollapsed ? "Reabrir dashboard" : "Fechar dashboard");
     }
 
     animateRefresh() {
