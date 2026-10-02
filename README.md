@@ -1,152 +1,238 @@
-CODXIS WEB — Metas e Resultados
-Extensão própria e complementar para o Codxis Web (também exibido como “Demo Web Codxis”). Não é um produto oficial do fornecedor.
+# 🚀 CODXIS WEB — Metas e Resultados
 
-O dashboard é inserido no topo da grade da home. Quando o ponto de montagem não é reconhecido, usa um painel no canto superior direito, evitando os botões de WhatsApp e chatbot que normalmente ficam no rodapé.
+Extensão própria e complementar para o **Codxis Web**, também exibido como **Demo Web Codxis**.
 
-Instalação (Chrome ou Edge)
-Abra chrome://extensions no Chrome ou edge://extensions no Edge.
-Ative Modo do desenvolvedor.
-Clique em Carregar sem compactação.
-Selecione esta pasta (a que contém manifest.json).
-Abra ou atualize o Codxis Web.
-Ao clicar no ícone da extensão, será aberto um popup com a meta, a última captura e atalhos para mostrar o dashboard ou solicitar uma atualização.
+> ⚠️ **Aviso:** esta extensão não é um produto oficial do fornecedor do sistema.
 
-O botão Configurações abre a página de opções da extensão. Nela é possível alterar a meta mensal, iniciar o dashboard recolhido e ativar os logs de diagnóstico. As mudanças são salvas em chrome.storage.local e as preferências visuais são aplicadas às abas abertas.
+O **CODXIS WEB — Metas e Resultados** adiciona um dashboard diretamente ao sistema para acompanhar metas e resultados de vendas, utilizando dados disponíveis na própria página ou nas respostas de API do sistema.
 
-A edição da meta é protegida por uma senha local. No primeiro acesso, o proprietário cadastra uma senha de pelo menos quatro caracteres. Ela é armazenada como hash SHA-256 com salt em chrome.storage.local; após cinco erros consecutivos, novas tentativas ficam bloqueadas por cinco minutos.
+A extensão foi desenvolvida para funcionar de forma **local, sem servidor externo e sem envio de dados para terceiros**.
 
-O dashboard mantém também um histórico local consolidado por dia do total vendido no mês. O mini gráfico usa somente capturas DOM válidas, conserva apenas o mês corrente e não cria dados retroativos.
+---
 
-Na primeira utilização, clique em Definir meta e informe a meta mensal. A extensão calcula automaticamente quanto ainda precisa ser vendido por dia e para a próxima janela de até sete dias, considerando o dia atual e o fim do mês. A meta fica apenas no navegador, em chrome.storage.local.
+## ✨ Funcionalidades
 
-O botão Atualizar força uma nova leitura da tela atual. Ele não inventa valores e não transforma falha de leitura em zero.
+* 📊 Dashboard de metas e resultados
+* 🎯 Definição de meta mensal
+* 📈 Cálculo automático do valor restante da meta
+* 📅 Projeção diária e para os próximos dias
+* 📉 Histórico diário das vendas
+* 📊 Mini gráfico de evolução mensal
+* 🔄 Atualização manual dos dados
+* ⚡ Captura através de API, DOM ou dados estruturados
+* 💾 Cache local da última captura válida
+* 🔐 Proteção da alteração da meta por senha
+* 🧪 Validações automatizadas
+* 🖥️ Suporte a Chrome e Edge
+* 📱 Interface responsiva
+* 🐛 Sistema de diagnóstico e logs
 
-Estado atual da captura
-A extensão está pronta para capturar valores de duas maneiras:
+---
 
-API/fetch/XHR: observa respostas das rotas configuradas, sem fazer novas requisições e sem enviar dados para fora do navegador.
-DOM: observa mudanças na página e lê os elementos configurados. Também faz uma conferência a cada 15 segundos.
-Rótulos semânticos: enquanto o seletor definitivo não é conhecido, procura cards com textos como “Total de produtos vendidos no mês” e associa somente o valor monetário localizado no mesmo card.
-Dados estruturados: pode ler blocos JSON já presentes no HTML.
-Cache local: mantém a última captura válida quando nenhuma fonte ao vivo estiver disponível.
-A prioridade é API → dados estruturados → DOM → cache. Uma fonte menos confiável não substitui uma captura recente de prioridade maior.
+## 🖼️ Dashboard
 
-Até os seletores/caminhos reais serem preenchidos, o dashboard mostra “Aguardando dados” quando nenhum card reconhecível existir; ele não inventa nem estima venda ou lucro.
+O dashboard é inserido no topo da grade da página inicial.
 
-Os estados são tratados separadamente:
+Caso o ponto de montagem principal não seja encontrado, a extensão utiliza um painel alternativo no **canto superior direito**, evitando interferência com elementos como WhatsApp e chatbot normalmente presentes no rodapé.
 
-R$ 0,00 aparece apenas quando a fonte retornou zero de maneira válida;
-“Sem vendas no período” identifica uma captura válida com total zero;
-“Dados ainda não sincronizados” significa que nenhuma captura ocorreu;
-“Dados não encontrados nesta tela” significa que a tela atual não contém os elementos configurados;
-“Seletor inválido” aponta erro de sintaxe na configuração;
-“Erro de captura” preserva o último cache válido e sinaliza a falha.
-Como atualizar seletores
-Todas as referências ao layout ficam em src/config.js.
+Ao clicar no ícone da extensão, é aberto um popup contendo:
 
-Totais exibidos na tela
-Abra “Fechamento de Caixa”, “Consultar Vendas NFC-e” ou “Realizar Venda”.
-Pressione F12 e use o seletor de elementos.
-Encontre o elemento que contém o total.
-Prefira um atributo estável (id, data-*, nome de campo) e evite classes geradas ou posições como :nth-child.
-Inclua o seletor nos arrays:
-dom: {
-  salesTotal: ["[data-testid='total-vendas']"],
-  profitTotal: ["[data-testid='lucro-real']"],
-  periodLabel: [".filtro-periodo .valor"]
-}
-É possível listar alternativas. A primeira encontrada é usada.
+* Meta atual
+* Última leitura
+* Atalhos para exibir o dashboard
+* Opção para atualizar os dados
 
-Linhas de uma tabela
-Se a tela não apresentar um total, configure as linhas e as células:
+---
 
-transactionRows: ["table.vendas tbody tr"],
-row: {
-  amount: ["td[data-column='valor']"],
-  profit: ["td[data-column='lucro']"],
-  date: ["td[data-column='data']"]
-}
-O somatório só ocorre quando um total direto não foi encontrado. Não configure linhas de uma tabela paginada como se representassem o período inteiro.
+# 📦 Instalação
 
-Respostas da API
-Na aba Network, filtre por Fetch/XHR, abra a requisição que traz os dados e confira Response. Em api.urlIncludes, use uma parte específica da URL; em salesPaths e profitPaths, informe o caminho até o número:
+A extensão utiliza **Manifest V3** e pode ser carregada diretamente no Chrome ou Edge.
 
+### Chrome
+
+Acesse:
+
+```text
+chrome://extensions
+```
+
+### Edge
+
+Acesse:
+
+```text
+edge://extensions
+```
+
+Depois:
+
+1. Ative o **Modo do desenvolvedor**.
+2. Clique em **Carregar sem compactação**.
+3. Selecione a pasta do projeto que contém o arquivo `manifest.json`.
+4. Abra ou atualize o Codxis Web.
+5. A extensão será inicializada automaticamente quando o sistema for identificado.
+
+---
+
+# ⚙️ Configuração
+
+A página **Configurações** permite alterar:
+
+* Meta mensal
+* Estado inicial do dashboard
+* Logs de diagnóstico
+
+As configurações são armazenadas localmente utilizando:
+
+```text
+chrome.storage.local
+```
+
+As preferências visuais também são aplicadas às abas abertas.
+
+---
+
+## 🔐 Proteção da meta
+
+A alteração da meta mensal é protegida por uma senha local.
+
+Na primeira utilização:
+
+1. O proprietário cadastra uma senha.
+2. A senha deve possuir pelo menos **4 caracteres**.
+3. A senha é armazenada como **hash SHA-256 com salt**.
+4. Após **5 tentativas incorretas consecutivas**, novas tentativas ficam bloqueadas por **5 minutos**.
+
+Nenhuma senha é enviada para servidores externos.
+
+---
+
+# 🎯 Sistema de metas
+
+Na primeira utilização, clique em:
+
+**Definir meta**
+
+e informe a meta mensal.
+
+A extensão calcula automaticamente:
+
+* Quanto ainda precisa ser vendido no mês
+* Média necessária por dia
+* Necessidade para os próximos dias
+* Quantidade de dias restantes
+* Superávit ou déficit em relação à meta
+
+Os cálculos consideram o **dia atual e o fim do mês**.
+
+A meta permanece somente no navegador através de:
+
+```text
+chrome.storage.local
+```
+
+---
+
+# 📊 Histórico de vendas
+
+A extensão mantém um histórico local consolidado por dia.
+
+O histórico:
+
+* Considera somente o mês atual
+* Não cria dados retroativos
+* Utiliza apenas capturas DOM válidas
+* É armazenado localmente
+* Alimenta o mini gráfico do dashboard
+
+O gráfico representa a evolução das vendas ao longo do mês.
+
+---
+
+# 🔄 Atualização dos dados
+
+O botão **Atualizar** força uma nova leitura da página atual.
+
+A extensão:
+
+* Não inventa valores
+* Não estima valores ausentes
+* Não transforma falhas de leitura em `R$ 0,00`
+* Mantém o último cache válido quando necessário
+
+---
+
+# 🔎 Captura de dados
+
+A extensão suporta diferentes fontes de dados.
+
+A prioridade utilizada é:
+
+```text
+API
+ ↓
+Dados estruturados
+ ↓
+DOM
+ ↓
+Cache
+```
+
+Uma fonte de menor prioridade não substitui uma captura recente proveniente de uma fonte de maior prioridade.
+
+---
+
+## 🌐 API / Fetch / XHR
+
+A extensão observa respostas das requisições **Fetch/XHR realizadas pelo próprio sistema**.
+
+Ela não cria novas requisições e não envia os dados para fora do navegador.
+
+Exemplo:
+
+```javascript
 api: {
   urlIncludes: ["/relatorio/vendas/resumo"],
   salesPaths: ["data.totais.vendas"],
   profitPaths: ["data.totais.lucro"],
   datePaths: ["data.atualizadoEm"]
 }
-Depois de qualquer alteração, volte à página de extensões, clique em Recarregar na extensão e atualize o Codxis.
+```
 
-Dados estruturados no HTML
-Se o sistema incluir um <script type="application/json">, estado serializado ou outro elemento contendo JSON, configure:
+---
 
-structured: {
-  jsonContainers: ["script#dados-resumo"],
-  salesPaths: ["data.totalVendas"],
-  profitPaths: ["data.lucroReal"],
-  datePaths: ["data.atualizadoEm"]
+## 🧩 DOM
+
+Quando os dados estão disponíveis diretamente na interface, a extensão pode capturá-los através dos elementos configurados.
+
+Ela também observa alterações no DOM e realiza uma conferência periódica a cada **15 segundos**.
+
+Exemplo:
+
+```javascript
+dom: {
+  salesTotal: ["[data-testid='total-vendas']"],
+  profitTotal: ["[data-testid='lucro-real']"],
+  periodLabel: [".filtro-periodo .valor"]
 }
-Esse método tem prioridade sobre texto visual do DOM.
+```
 
-Restringir ao domínio da empresa
-Por não termos ainda a URL do sistema, o manifesto permite páginas HTTP/HTTPS, mas o código só inicia quando detecta “Codxis”/“Avante Web”. Assim que souber o domínio, recomenda-se:
+É possível definir múltiplos seletores. O primeiro elemento encontrado será utilizado.
 
-Preencher app.allowedHosts em src/config.js.
-Trocar os três padrões http://*/* / https://*/* do manifest.json pelo domínio exato, por exemplo https://web.exemplo.com.br/*.
-Isso reduz a permissão exibida pelo navegador.
+---
 
-Navegação e atualização automática
-A extensão funciona em páginas tradicionais e SPAs. Ela reage a:
+## 🏷️ Rótulos semânticos
 
-fetch e XHR realizados pelo próprio sistema;
-alterações relevantes no DOM;
-history.pushState, history.replaceState, popstate e hashchange;
-retorno à aba ou à home;
-intervalo de segurança configurado em app.refreshMs;
-clique no botão Atualizar.
-O interceptador de rede só é ativado depois que a página é confirmada como Codxis/Avante Web.
+Enquanto os seletores definitivos não forem conhecidos, a extensão pode procurar cards contendo textos como:
 
-Diagnóstico de problemas
-Abra F12 → Console e confirme se existem erros iniciados por [CODXIS WEB].
-Para logs detalhados, altere app.diagnostics para true em src/config.js, recarregue a extensão e atualize a página.
-Se o painel não aparecer, revise app.allowedHosts, mount.homeHints e mount.homeContainers.
-Se aparecer “Seletor inválido”, teste cada seletor no Console com document.querySelector("SELETOR").
-Se aparecer “Dados não encontrados nesta tela”, confirme se a tela e o período corretos estão abertos e se o elemento não está dentro de um iframe.
-Se a API mudou, confira novamente Network → Fetch/XHR, a URL da requisição, o JSON da resposta e os caminhos em api.*Paths.
-Se o HTML mudou, prefira id, name, data-* ou aria-* estáveis. Evite classes geradas e seletores baseados em posição.
-Em tabelas paginadas, não some apenas a página visível; use o total da API ou do relatório completo.
-Se o conteúdo estiver em iframe de outro domínio, será necessário adicionar o domínio desse iframe ao manifest.json e, conforme o caso, habilitar all_frames no content script.
+```text
+Total de produtos vendidos no mês
+```
 
-Como adaptar quando o sistema mudar
-Mudou somente uma classe/atributo: ajuste dom ou mount.
-Mudou a estrutura do JSON: ajuste os caminhos pontilhados de api ou structured.
-Mudou a URL do endpoint: ajuste api.urlIncludes.
-Surgiu uma API confiável: mantenha o DOM como fallback e coloque o endpoint e os caminhos da API na configuração.
-A API passou a retornar lista paginada: procure o endpoint de resumo/total; não trate uma página da lista como o período inteiro.
-Venda e lucro vêm de endpoints diferentes: configure os caminhos de ambos; o cache preserva o campo válido que não estiver presente na captura seguinte.
-Arquivos
-manifest.json: Manifest V3 e ordem de carregamento.
-src/config.js: domínios, montagem, seletores e caminhos da API.
-src/storage.js: acesso centralizado ao chrome.storage.local.
-src/service-worker.js: ciclo de instalação e base para ações da extensão.
-src/page-bridge.js: observa fetch/XHR feitos pelo próprio sistema.
-src/data-collector.js: normaliza moeda e captura API/DOM.
-src/goal-calculator.js: calcula restante, dias, médias e superávit mensal.
-src/password-protection.js: hash, validação, tentativas e bloqueio da senha.
-src/sales-history.js: consolidação diária e retenção do mês atual.
-src/mini-chart.js: geometria e renderização do gráfico SVG.
-src/dashboard.js: interface, metas e persistência local.
-src/content.js: detecção do sistema, home e inicialização em SPA.
-src/dashboard.css: visual isolado e responsivo.
-options/: página Manifest V3 para configurar a meta e preferências.
-tests/goal-calculator.test.js: validações automatizadas dos cálculos.
-tests/password-protection.test.js: validações da autenticação local.
-tests/sales-history.test.js: validações de consolidação e troca de mês.
-tests/mini-chart.test.js: validações da geometria do gráfico.
-icons/: ícones PNG para Chrome e Edge nos tamanhos exigidos.
-Privacidade
-Não há servidor externo, analytics ou dependências de terceiros. Nenhuma informação é enviada pela extensão. Meta e último retrato capturado permanecem no armazenamento local do navegador.
+Nesse caso, ela procura o valor monetário correspondente dentro do mesmo card.
 
-extensao-codxis
+---
+
+## 🧱 Dados estruturados
+
+A extensão também consegue inte
